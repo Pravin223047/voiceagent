@@ -5,9 +5,18 @@ const loopForeverCheckbox = document.getElementById('loopForever');
 const previewText = document.getElementById('previewText');
 const speakBtn = document.getElementById('speakBtn');
 const stopBtn = document.getElementById('stopBtn');
+const voiceStyleSelect = document.getElementById('voiceStyle');
+const voiceSelect = document.getElementById('voiceSelect');
 
 let loopState = false;
 let activeLoopTimer = null;
+
+const voiceProfiles = {
+  radio: { rate: 0.92, pitch: 1.25, volume: 1 },
+  warm: { rate: 0.9, pitch: 1.12, volume: 1 },
+  deep: { rate: 0.82, pitch: 0.9, volume: 0.98 },
+  clear: { rate: 1, pitch: 1.05, volume: 1 }
+};
 
 function getSentences(inputText) {
   const trimmed = inputText.trim();
@@ -21,12 +30,91 @@ function getSentences(inputText) {
   return sentences.length ? sentences : [trimmed];
 }
 
-function getVoiceForLanguage(languageCode) {
-  const voices = window.speechSynthesis.getVoices();
-  const exactMatch = voices.find((voice) => voice.lang.toLowerCase() === languageCode.toLowerCase());
-  if (exactMatch) return exactMatch;
+function getAvailableVoices() {
+  return window.speechSynthesis.getVoices();
+}
 
-  return voices.find((voice) => voice.lang.toLowerCase().startsWith(languageCode.slice(0, 2))) || voices[0];
+function getVoiceMetadata(voice) {
+  const name = (voice?.name || '').toLowerCase();
+  const lang = (voice?.lang || '').toLowerCase();
+
+  if (name.includes('female') || name.includes('zira') || name.includes('samantha') || name.includes('aria') || name.includes('jenny')) {
+    return 'female';
+  }
+
+  if (name.includes('male') || name.includes('david') || name.includes('mark') || name.includes('daniel') || name.includes('ravi')) {
+    return 'male';
+  }
+
+  if (lang.includes('en') && name.includes('google')) {
+    return 'female';
+  }
+
+  return 'neutral';
+}
+
+function getVoiceForLanguage(languageCode, preferredStyle = voiceStyleSelect.value) {
+  const voices = getAvailableVoices();
+  const selectedVoiceName = voiceSelect.value;
+
+  if (selectedVoiceName && selectedVoiceName !== 'auto') {
+    return voices.find((voice) => voice.name === selectedVoiceName) || voices[0];
+  }
+
+  const targetLang = languageCode.toLowerCase();
+  const exactMatch = voices.find((voice) => voice.lang.toLowerCase() === targetLang);
+  if (exactMatch) {
+    const preferred = voices.filter((voice) => {
+      const voiceType = getVoiceMetadata(voice);
+      const style = preferredStyle || 'radio';
+      if (style === 'deep') return voiceType === 'male';
+      if (style === 'warm' || style === 'radio') return voiceType !== 'male';
+      return true;
+    }).find((voice) => voice.lang.toLowerCase() === targetLang);
+
+    if (preferred) return preferred;
+    return exactMatch;
+  }
+
+  const sameFamily = voices.filter((voice) => voice.lang.toLowerCase().startsWith(targetLang.slice(0, 2)));
+  const preferred = sameFamily.find((voice) => {
+    const voiceType = getVoiceMetadata(voice);
+    if (preferredStyle === 'deep') return voiceType === 'male';
+    if (preferredStyle === 'warm' || preferredStyle === 'radio') return voiceType !== 'male';
+    return true;
+  });
+
+  return preferred || sameFamily[0] || voices[0];
+}
+
+function populateVoiceList() {
+  const voices = getAvailableVoices();
+  if (!voices.length) return;
+
+  const currentValue = voiceSelect.value || 'auto';
+  voiceSelect.innerHTML = '<option value="auto">Auto pick best voice</option>';
+
+  voices.forEach((voice) => {
+    const option = document.createElement('option');
+    option.value = voice.name;
+    option.textContent = `${voice.name} (${voice.lang})`;
+    voiceSelect.appendChild(option);
+  });
+
+  if (voices.some((voice) => voice.name === currentValue)) {
+    voiceSelect.value = currentValue;
+  }
+}
+
+function applyVoiceProfile(utterance, languageCode) {
+  const profile = voiceProfiles[voiceStyleSelect.value] || voiceProfiles.radio;
+  const chosenVoice = getVoiceForLanguage(languageCode, voiceStyleSelect.value);
+
+  utterance.lang = languageCode;
+  utterance.voice = chosenVoice;
+  utterance.rate = profile.rate;
+  utterance.pitch = profile.pitch;
+  utterance.volume = profile.volume;
 }
 
 function updatePreview() {
@@ -56,16 +144,6 @@ function stopSpeaking() {
   }
 }
 
-function speakText(textToSpeak, languageCode) {
-  const utterance = new SpeechSynthesisUtterance(textToSpeak);
-  utterance.lang = languageCode;
-  utterance.voice = getVoiceForLanguage(languageCode);
-  utterance.rate = 1;
-  utterance.pitch = 1.1;
-  utterance.volume = 1;
-  window.speechSynthesis.speak(utterance);
-}
-
 function speakQueuedSequence(items, languageCode) {
   if (!items.length) return;
 
@@ -76,11 +154,7 @@ function speakQueuedSequence(items, languageCode) {
 
     const item = queue.shift();
     const utterance = new SpeechSynthesisUtterance(item);
-    utterance.lang = languageCode;
-    utterance.voice = getVoiceForLanguage(languageCode);
-    utterance.rate = 1;
-    utterance.pitch = 1.1;
-    utterance.volume = 1;
+    applyVoiceProfile(utterance, languageCode);
 
     utterance.onend = () => {
       if (queue.length > 0) {
@@ -116,11 +190,7 @@ function speakInLoop(languageCode) {
     const repeatedText = Array.from({ length: repeatCount }, () => sentence).join(' ');
 
     const utterance = new SpeechSynthesisUtterance(repeatedText);
-    utterance.lang = languageCode;
-    utterance.voice = getVoiceForLanguage(languageCode);
-    utterance.rate = 1;
-    utterance.pitch = 1.1;
-    utterance.volume = 1;
+    applyVoiceProfile(utterance, languageCode);
 
     utterance.onend = () => {
       sentenceIndex += 1;
@@ -161,6 +231,8 @@ textInput.addEventListener('input', updatePreview);
 repeatCountInput.addEventListener('input', updatePreview);
 loopForeverCheckbox.addEventListener('change', updatePreview);
 languageSelect.addEventListener('change', updatePreview);
+voiceStyleSelect.addEventListener('change', updatePreview);
+voiceSelect.addEventListener('change', updatePreview);
 
 speakBtn.addEventListener('click', handleSpeak);
 stopBtn.addEventListener('click', () => {
@@ -169,8 +241,13 @@ stopBtn.addEventListener('click', () => {
 });
 
 window.addEventListener('load', () => {
-  window.speechSynthesis.onvoiceschanged = () => {
+  const syncVoices = () => {
+    populateVoiceList();
     updatePreview();
   };
-  updatePreview();
+
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.onvoiceschanged = syncVoices;
+    syncVoices();
+  }
 });
