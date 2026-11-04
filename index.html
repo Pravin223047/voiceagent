@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Voice Shout App</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <div class="card">
+        <h1>Voice Shout App</h1>
+        <p class="subtitle">Type anything and the app will speak it loudly in repeated form.</p>
+
+        <label for="textInput">Your text</label>
+        <textarea id="textInput" rows="5" placeholder="Example: hello">hello</textarea>
+
+        <div class="row">
+          <div class="field">
+            <label for="repeatCount">Repeat count</label>
+            <input id="repeatCount" type="number" min="1" max="500" value="10" />
+          </div>
+
+          <div class="field">
+            <label for="language">Language</label>
+            <select id="language">
+              <option value="en-US">English</option>
+              <option value="hi-IN">Hindi</option>
+              <option value="mr-IN">Marathi</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="check-row">
+          <label class="checkbox-wrap">
+            <input id="loopForever" type="checkbox" />
+            <span>Loop forever</span>
+          </label>
+        </div>
+
+        <div class="preview-box">
+          <strong>Preview:</strong>
+          <p id="previewText">hello hello hello hello hello hello hello hello hello hello</p>
+        </div>
+
+        <div class="controls">
+          <button id="speakBtn" class="primary">Speak</button>
+          <button id="stopBtn" class="secondary">Stop</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
